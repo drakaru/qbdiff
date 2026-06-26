@@ -13,7 +13,7 @@ struct File {
 	char const *name;
 };
 
-size_t const BLOCK_SIZE = 1024*1024;
+size_t const BLOCK_SIZE = 4096;
 size_t const ROW_SIZE = 16;
 
 static bool g_verifyIdentical = false;
