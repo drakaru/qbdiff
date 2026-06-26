@@ -5,11 +5,12 @@ c99 fork of lunasorcery's [qbdiff](https://github.com/lunasorcery/qbdiff)
 **qbdiff** (**q**uick **b**inary **diff**) provides a quick overview of where the contents of two binary files diverge.
 
 ### Usage:  
-```sh
-qbdiff file1 file2
 ```
+   qbdiff [options] <input file1> <input file2>
 
-This diffs input files stopping either when files are exhausted or diverged.
+Options:
+   -v,--verify-identical Verify files are identical -- exit non-zero when files differ
+```
 
 ### Example output:
 
