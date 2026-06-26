@@ -1,12 +1,17 @@
 # qbdiff
 
-*Note: I made this almost a decade ago, but apparently doing a `git commit --amend` and force-pushing over it changes the commit timestamp in the GitHub UI (and only the GitHub UI, it still renders as-was in a `git log`). Computers, amirite?*
+c99 fork of lunasorcery's [qbdiff](https://github.com/lunasorcery/qbdiff)
 
 **qbdiff** (**q**uick **b**inary **diff**) provides a quick overview of where the contents of two binary files diverge.
 
-Usage:  ``qbdiff FILES``
+### Usage:  
+```sh
+qbdiff file1 file2
+```
 
-Example output:
+This diffs input files stopping either when files are exhausted or diverged.
+
+### Example output:
 
     $ qbdiff qbdiff.bin brailify.bin 
     'qbdiff.bin' is shorter than 'brailify.bin' by 161892 bytes.
