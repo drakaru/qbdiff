@@ -1,5 +1,7 @@
-qbdiff: main.cpp
-	$(CC) main.cpp -o qbdiff -O3 -lstdc++ -Wall -Wextra -Werror
+all: qbdiff
+
+qbdiff: main.c
+	$(CC) main.c -o qbdiff -std=c99 -O3 -Wall -Wextra -Werror
 
 clean:
 	rm -f qbdiff

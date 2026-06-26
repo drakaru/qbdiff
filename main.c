@@ -1,5 +1,3 @@
-#!/usr/bin/env -S tcc -run
-
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
