@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <getopt.h>
 
 typedef struct File File;
@@ -14,6 +13,7 @@ struct File {
 	char const *name;
 };
 
+size_t const BLOCK_SIZE = 1024*1024;
 size_t const ROW_SIZE = 16;
 
 static bool g_verifyIdentical = false;
@@ -37,7 +37,7 @@ void fileClose(File const *file) {
 	if (file && file->handle) { fclose(file->handle); }
 }
 
-#define min(v1, v2) (v2 > v1 ? v2 : v1)
+#define min(v1, v2) ((v2) > (v1) ? (v1) : (v2))
 
 bool parseCommandLine(int argc, char **argv);
 void printUsage();
@@ -120,40 +120,43 @@ bool diff(File const *file1, File const *file2) {
 	}
 
 	bool diverged = false;
-	for (size_t offset = 0; (offset < file1->length || offset < file2->length) && !diverged; offset += ROW_SIZE) {
-		uint8_t buffer1[ROW_SIZE];
-		uint8_t buffer2[ROW_SIZE];
-		size_t const len1 = fread(buffer1, 1, ROW_SIZE, file1->handle);
-		size_t const len2 = fread(buffer2, 1, ROW_SIZE, file2->handle);
+	size_t divergeOffset = 0;
+
+	for (size_t offset = 0; (offset < file1->length || offset < file2->length) && !diverged; offset += BLOCK_SIZE) {
+		uint8_t buffer1[BLOCK_SIZE];
+		uint8_t buffer2[BLOCK_SIZE];
+		size_t const len1 = fread(buffer1, 1, BLOCK_SIZE, file1->handle);
+		size_t const len2 = fread(buffer2, 1, BLOCK_SIZE, file2->handle);
 		size_t const minLength = min(len1, len2);
-		size_t diffOffset = 0;
 
 		for (size_t j = 0; j < minLength; ++j) {
 			if (buffer1[j] != buffer2[j]) {
 				diverged = true;
-				diffOffset = j;
+				divergeOffset = offset + j;
 				break;
 			}
 		}
 
-		if (len1 != len2 && !diverged) {
-			diverged = true;
-			diffOffset = minLength;
-		}
-
 		if (diverged) {
-			printf("Files diverge at 0x%08lx:\n", offset + diffOffset);
-			printRow(offset, buffer1, len1, file1->name);
-			printRow(offset, buffer2, len2, file2->name);
+			size_t const divergeRowOffset = divergeOffset % ROW_SIZE;
+			size_t const divergeRowStart = divergeOffset - divergeRowOffset;
+			size_t const divergeBlockOffset = divergeRowStart % BLOCK_SIZE;
+
+			size_t const rowLen1 = min(file1->length - divergeOffset, ROW_SIZE);
+			size_t const rowLen2 = min(file2->length - divergeOffset, ROW_SIZE);
+
+			printf("Files diverge at 0x%08lx:\n", divergeOffset);
+			printRow(divergeRowStart, buffer1 + divergeBlockOffset, rowLen1, file1->name);
+			printRow(divergeRowStart, buffer2 + divergeBlockOffset, rowLen2, file2->name);
 			printf("            ");
-			for (size_t j = 0; j < diffOffset; ++j) {
+			for (size_t j = 0; j < divergeRowOffset; ++j) {
 				printf("   ");
 			}
 			printf("^\n");
 		}
 	}
-	
-	return diverged;
+
+	return diverged || file1->length != file2->length;
 }
 
 void printRow(size_t const offset, uint8_t const *buffer, size_t length, char const *name) {
