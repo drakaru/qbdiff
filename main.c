@@ -1,5 +1,6 @@
 #!/usr/bin/env -S tcc -run
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -9,7 +10,7 @@
 
 typedef struct File File;
 struct File {
-	FILE *fh;
+	FILE *handle;
 	size_t length;
 	bool exists;
 	char const *name;
@@ -23,19 +24,19 @@ static File g_file2;
 
 File fileOpen(char const *filename) {
 	File file = {};
-	file.fh = fopen(filename, "rb");
-	if (file.fh != NULL) {
+	file.handle = fopen(filename, "rb");
+	if (file.handle != NULL) {
 		file.exists = true;
-		fseek(file.fh, 0, SEEK_END);
-		file.length = ftell(file.fh);
-		fseek(file.fh, 0, SEEK_SET);
+		fseek(file.handle, 0, SEEK_END);
+		file.length = ftell(file.handle);
+		fseek(file.handle, 0, SEEK_SET);
 	}
 	file.name = filename;
 	return file;
 }
 
 void fileClose(File const *file) {
-	if (file && file->fh) { fclose(file->fh); }
+	if (file && file->handle) { fclose(file->handle); }
 }
 
 #define min(v1, v2) (v2 > v1 ? v2 : v1)
@@ -57,8 +58,8 @@ int main(int argc, char** argv) {
 		quit(1);
 	}
 
-	if (!g_file1.exists) { printf("%s doesn't exist!\n", g_file1.name); }
-	if (!g_file2.exists) { printf("%s doesn't exist!\n", g_file2.name); }
+	if (!g_file1.exists) { printf("qbdiff: %s doesn't exist!\n", g_file1.name); }
+	if (!g_file2.exists) { printf("qbdiff: %s doesn't exist!\n", g_file2.name); }
 	if (!g_file1.exists || !g_file2.exists) { quit(1); }
 
 	bool const diverged = diff(&g_file1, &g_file2);
@@ -109,6 +110,9 @@ void printUsage() {
 }
 
 bool diff(File const *file1, File const *file2) {
+	assert(file1 && file1->handle && "diff assumes valid files");
+	assert(file2 && file2->handle && "diff assumes valid files");
+
 	if (file1->length > file2->length) {
 		printf("'%s' is longer than '%s' by %ld bytes.\n", file1->name, file2->name, file1->length - file2->length);
 	} else if (file1->length < file2->length) {
@@ -121,8 +125,8 @@ bool diff(File const *file1, File const *file2) {
 	for (size_t offset = 0; (offset < file1->length || offset < file2->length) && !diverged; offset += ROW_SIZE) {
 		uint8_t buffer1[ROW_SIZE];
 		uint8_t buffer2[ROW_SIZE];
-		size_t const len1 = fread(buffer1, 1, ROW_SIZE, file1->fh);
-		size_t const len2 = fread(buffer2, 1, ROW_SIZE, file2->fh);
+		size_t const len1 = fread(buffer1, 1, ROW_SIZE, file1->handle);
+		size_t const len2 = fread(buffer2, 1, ROW_SIZE, file2->handle);
 		size_t const minLength = min(len1, len2);
 		size_t diffOffset = 0;
 
