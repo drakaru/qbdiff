@@ -1,11 +1,11 @@
+#!/usr/bin/env -S tcc -run
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
-
-const size_t ROW_SIZE = 16;
 
 typedef struct File File;
 struct File {
@@ -14,6 +14,12 @@ struct File {
 	bool exists;
 	char const *name;
 };
+
+size_t const ROW_SIZE = 16;
+
+static bool g_verifyIdentical = false;
+static File g_file1;
+static File g_file2;
 
 File fileOpen(char const *filename) {
 	File file = {};
@@ -29,31 +35,15 @@ File fileOpen(char const *filename) {
 }
 
 void fileClose(File const *file) {
-	if (file && file->fh) {
-		fclose(file->fh);
-	}
-}
-
-void printRow(size_t const offset, uint8_t const *buffer, size_t length, char const *name) {
-	printf("0x%08lx: ", offset);
-	for (size_t i = 0; i < length; ++i) {
-		printf("%02x ", buffer[i]);
-	}
-	while (length < ROW_SIZE) {
-		printf("   ");
-		++length;
-	}
-	printf("(%s)\n", name);
+	if (file && file->fh) { fclose(file->fh); }
 }
 
 #define min(v1, v2) (v2 > v1 ? v2 : v1)
 
-static bool g_verifyIdentical = false;
-static File g_file1;
-static File g_file2;
-
 bool parseCommandLine(int argc, char **argv);
 void printUsage();
+bool diff(File const *file1, File const *file2);
+void printRow(size_t offset, uint8_t const *buffer, size_t length, char const *name);
 
 void quit(int const exitCode) {
 	fileClose(&g_file1);
@@ -71,47 +61,7 @@ int main(int argc, char** argv) {
 	if (!g_file2.exists) { printf("%s doesn't exist!\n", g_file2.name); }
 	if (!g_file1.exists || !g_file2.exists) { quit(1); }
 
-	if (g_file1.length > g_file2.length) {
-		printf("'%s' is longer than '%s' by %ld bytes.\n", g_file1.name, g_file2.name, g_file1.length - g_file2.length);
-	} else if (g_file1.length < g_file2.length) {
-		printf("'%s' is shorter than '%s' by %ld bytes.\n", g_file1.name, g_file2.name, g_file2.length - g_file1.length);
-	} else {
-		printf("'%s' and '%s' are both %ld bytes long.\n", g_file1.name, g_file2.name, g_file1.length);
-	}
-
-	bool diverged = false;
-	for (size_t offset = 0; (offset < g_file1.length || offset < g_file2.length) && !diverged; offset += ROW_SIZE) {
-		uint8_t buffer1[ROW_SIZE];
-		uint8_t buffer2[ROW_SIZE];
-		size_t const len1 = fread(buffer1, 1, ROW_SIZE, g_file1.fh);
-		size_t const len2 = fread(buffer2, 1, ROW_SIZE, g_file2.fh);
-		size_t const minLength = min(len1, len2);
-		size_t diffOffset = 0;
-
-		for (size_t j = 0; j < minLength; ++j) {
-			if (buffer1[j] != buffer2[j]) {
-				diverged = true;
-				diffOffset = j;
-				break;
-			}
-		}
-
-		if (len1 != len2 && !diverged) {
-			diverged = true;
-			diffOffset = minLength;
-		}
-
-		if (diverged) {
-			printf("Files diverge at 0x%08lx:\n", offset + diffOffset);
-			printRow(offset, buffer1, len1, g_file1.name);
-			printRow(offset, buffer2, len2, g_file2.name);
-			printf("            ");
-			for (size_t j = 0; j < diffOffset; ++j) {
-				printf("   ");
-			}
-			printf("^\n");
-		}
-	}
+	bool const diverged = diff(&g_file1, &g_file2);
 	if (!diverged) {
 		printf("Files are identical and do not diverge.\n");
 	}
@@ -156,4 +106,62 @@ void printUsage() {
 	puts("");
 	puts("Options:");
 	puts("   -v,--verify-identical Verify files are identical -- exit non-zero when files differ");
+}
+
+bool diff(File const *file1, File const *file2) {
+	if (file1->length > file2->length) {
+		printf("'%s' is longer than '%s' by %ld bytes.\n", file1->name, file2->name, file1->length - file2->length);
+	} else if (file1->length < file2->length) {
+		printf("'%s' is shorter than '%s' by %ld bytes.\n", file1->name, file2->name, file2->length - file1->length);
+	} else {
+		printf("'%s' and '%s' are both %ld bytes long.\n", file1->name, file2->name, file1->length);
+	}
+
+	bool diverged = false;
+	for (size_t offset = 0; (offset < file1->length || offset < file2->length) && !diverged; offset += ROW_SIZE) {
+		uint8_t buffer1[ROW_SIZE];
+		uint8_t buffer2[ROW_SIZE];
+		size_t const len1 = fread(buffer1, 1, ROW_SIZE, file1->fh);
+		size_t const len2 = fread(buffer2, 1, ROW_SIZE, file2->fh);
+		size_t const minLength = min(len1, len2);
+		size_t diffOffset = 0;
+
+		for (size_t j = 0; j < minLength; ++j) {
+			if (buffer1[j] != buffer2[j]) {
+				diverged = true;
+				diffOffset = j;
+				break;
+			}
+		}
+
+		if (len1 != len2 && !diverged) {
+			diverged = true;
+			diffOffset = minLength;
+		}
+
+		if (diverged) {
+			printf("Files diverge at 0x%08lx:\n", offset + diffOffset);
+			printRow(offset, buffer1, len1, file1->name);
+			printRow(offset, buffer2, len2, file2->name);
+			printf("            ");
+			for (size_t j = 0; j < diffOffset; ++j) {
+				printf("   ");
+			}
+			printf("^\n");
+		}
+	}
+	
+	return diverged;
+}
+
+void printRow(size_t const offset, uint8_t const *buffer, size_t length, char const *name) {
+	printf("0x%08lx: ", offset);
+	for (size_t i = 0; i < length; ++i) {
+		printf("%02x ", buffer[i]);
+	}
+	while (length < ROW_SIZE) {
+		printf("   ");
+		++length;
+	}
+	printf("(%s)\n", name);
 }
