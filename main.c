@@ -9,13 +9,13 @@ const size_t ROW_SIZE = 16;
 
 typedef struct File File;
 struct File {
-	FILE* fh;
+	FILE *fh;
 	size_t length;
 	bool exists;
 	char const *name;
 };
 
-File fileOpen(const char* filename) {
+File fileOpen(char const *filename) {
 	File file = {};
 	file.fh = fopen(filename, "rb");
 	if (file.fh != NULL) {
@@ -28,13 +28,13 @@ File fileOpen(const char* filename) {
 	return file;
 }
 
-void fileClose(File *file) {
+void fileClose(File const *file) {
 	if (file && file->fh) {
 		fclose(file->fh);
 	}
 }
 
-void printRow(size_t offset, uint8_t* buffer, size_t length, const char* name) {
+void printRow(size_t const offset, uint8_t const *buffer, size_t length, char const *name) {
 	printf("0x%08lx: ", offset);
 	for (size_t i = 0; i < length; ++i) {
 		printf("%02x ", buffer[i]);
@@ -48,14 +48,14 @@ void printRow(size_t offset, uint8_t* buffer, size_t length, const char* name) {
 
 #define min(v1, v2) (v2 > v1 ? v2 : v1)
 
-static bool g_verify_identical = false;
+static bool g_verifyIdentical = false;
 static File g_file1;
 static File g_file2;
 
 bool parseCommandLine(int argc, char **argv);
 void printUsage();
 
-void quit(int exitCode) {
+void quit(int const exitCode) {
 	fileClose(&g_file1);
 	fileClose(&g_file2);
 	exit(exitCode);
@@ -83,10 +83,10 @@ int main(int argc, char** argv) {
 	for (size_t offset = 0; (offset < g_file1.length || offset < g_file2.length) && !diverged; offset += ROW_SIZE) {
 		uint8_t buffer1[ROW_SIZE];
 		uint8_t buffer2[ROW_SIZE];
-		size_t len1 = fread(buffer1, 1, ROW_SIZE, g_file1.fh);
-		size_t len2 = fread(buffer2, 1, ROW_SIZE, g_file2.fh);
+		size_t const len1 = fread(buffer1, 1, ROW_SIZE, g_file1.fh);
+		size_t const len2 = fread(buffer2, 1, ROW_SIZE, g_file2.fh);
+		size_t const minLength = min(len1, len2);
 		size_t diffOffset = 0;
-		size_t minLength = min(len1, len2);
 
 		for (size_t j = 0; j < minLength; ++j) {
 			if (buffer1[j] != buffer2[j]) {
@@ -116,31 +116,31 @@ int main(int argc, char** argv) {
 		printf("Files are identical and do not diverge.\n");
 	}
 
-	quit(diverged && g_verify_identical ? 2 : 0);
+	quit(diverged && g_verifyIdentical ? 2 : 0);
 }
 
 bool parseCommandLine(int argc, char **argv) {
-	static struct option long_options[] = {
+	static struct option longOptions[] = {
 		{"verify-identical", no_argument, NULL, 'v'},
 		{NULL, 0, NULL, 0}
 	};
 
-	int option_index = 0;
+	int optionIndex = 0;
 	int c;
-	while ((c = getopt_long(argc, argv, "v", long_options, &option_index)) != -1) {
+	while ((c = getopt_long(argc, argv, "v", longOptions, &optionIndex)) != -1) {
 		switch (c) {
 			case 'v':
-				g_verify_identical = true;
+				g_verifyIdentical = true;
 				break;
 			default:
 				printf("qbdiff: ?? : %d\n", c);
 		}
 	}
 
-	int file_argc = argc - optind;
+	int const fileArgc = argc - optind;
 
-	if (file_argc != 2) {
-		printf("qbdiff: 2 files expected, got %d\n", file_argc);
+	if (fileArgc != 2) {
+		printf("qbdiff: 2 files expected, got %d\n", fileArgc);
 		return false;
 	}
 
